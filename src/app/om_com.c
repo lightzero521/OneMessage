@@ -162,14 +162,36 @@ om_com_recv_ans_t om_com_prase_recv(om_com_t* com, uint8_t* buff, uint32_t size,
                       com->prase_buff_len ||
                   pack->data_len + sizeof(om_com_raw_type_t) >
                       com->recv_fifo.item_sum) {
-                /* ERR: Buff is too small */
+                /* ERR: Buff is too small
+                 * 必须丢弃整包后立刻退出，不能带病继续：
+                 * release 构建（OM_DEBUG=0）下 OM_ASSERT 会被完全编译掉，
+                 * 若继续执行，WAIT_DATA_CRC 分支会按 data_len 往
+                 * prase_buff 写入，造成堆溢出（已由 ASAN 证实）。 */
                 OM_ASSERT(false);
+                com->status = OM_COM_STATUS_WAIT_START;
+                com->data_len = 0;
+                om_fifo_pop_batch(
+                    &com->recv_fifo,
+                    om_fifo_readable_item_count(&com->recv_fifo));
+                break;
               }
 
               com->topic = com->map[i].topic;
               com->data_len = pack->data_len;
-              /* ERR: diff buff size in same topic */
-              OM_ASSERT(com->data_len == com->topic->buff_len);
+
+              if (com->data_len != com->topic->buff_len) {
+                /* ERR: diff buff size in same topic
+                 * 同上，长度不一致会导致 om_publish 按错误长度发布，
+                 * 可能读到 prase_buff 之外的数据。 */
+                OM_ASSERT(false);
+                com->status = OM_COM_STATUS_WAIT_START;
+                com->data_len = 0;
+                om_fifo_pop_batch(
+                    &com->recv_fifo,
+                    om_fifo_readable_item_count(&com->recv_fifo));
+                break;
+              }
+
               com->status = OM_COM_STATUS_WAIT_DATA_CRC;
               continue;
             }

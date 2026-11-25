@@ -24,7 +24,11 @@ om_topic_t* om_core_topic_create_static(om_topic_t* topic, const char* name,
   OM_ASSERT(topic);
 
   memset(topic, 0, sizeof(*topic));
-  strncpy(topic->name, name, OM_TOPIC_MAX_NAME_LEN);
+  /* 用 snprintf 而非 strncpy：strncpy 在源串 >= OM_TOPIC_MAX_NAME_LEN 时
+   * 不写终止符，name[15] 会被填满。此前仅靠 memset 产生的 1 字节
+   * 结构体 padding 恰好为 0 才没有越界，属于隐式前提。
+   * snprintf 保证截断并终止，最长可见名字为 OM_TOPIC_MAX_NAME_LEN - 1。 */
+  snprintf(topic->name, OM_TOPIC_MAX_NAME_LEN, "%s", name);
 
   topic->self.key = topic->name;
   topic->virtual_mode = true;
@@ -262,6 +266,9 @@ om_status_t om_core_set_export_target(om_suber_t* suber) {
 void om_error(const char* file, uint32_t line) {
   (void)(file);
   (void)(line);
-  while (1) {
-  };
+  /* 断言失败：立即终止进程。
+   * 原实现是 while(1) 空转 —— 程序永久挂死，只能靠看门狗复位，
+   * 且现场完全丢失。abort() 会触发 SIGABRT，至少能拿到 core dump。
+   * 嵌入式平台可通过 OM_DEBUG 关闭断言，或重定义本函数做软复位。 */
+  abort();
 }

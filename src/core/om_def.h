@@ -42,14 +42,24 @@ typedef struct {
 typedef om_status_t (*om_user_fun_t)(om_msg_t* msg, void* arg);
 
 #if OM_DEBUG
-#define OM_ASSERT(arg) \
-  if (!(arg)) om_error(__FILE__, __LINE__);
-#define OM_CHECK(arg) \
-  if (!(arg)) om_error(__FILE__, __LINE__);
+#define OM_ASSERT(arg)          \
+  do {                          \
+    if (!(arg))                 \
+      om_error(__FILE__, __LINE__); \
+  } while (0)
+#define OM_CHECK(arg)           \
+  do {                          \
+    if (!(arg))                 \
+      om_error(__FILE__, __LINE__); \
+  } while (0)
 
 #else
-#define OM_ASSERT(arg) (void)0;
-#define OM_CHECK(arg) (void)0;
+#define OM_ASSERT(arg) \
+  do {                 \
+  } while (0)
+#define OM_CHECK(arg) \
+  do {                \
+  } while (0)
 #endif
 
 #define OM_UNUSED(X) ((void)X)
